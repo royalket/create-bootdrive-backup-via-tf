@@ -12,5 +12,4 @@ terraform {
 
 provider "google" {
   project = data.google_project.current.project_id
-  region  = var.region
 }

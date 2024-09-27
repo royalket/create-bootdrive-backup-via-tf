@@ -1,8 +1,8 @@
 # terraform/outputs.tf
 
-output "selected_vm_name" {
-  value       = local.selected_vm != null ? local.selected_vm.name : "No VM found"
-  description = "The name of the selected VM for backup"
+output "project_id" {
+  value       = data.google_project.current.project_id
+  description = "The ID of the GCP project"
 }
 
 output "backup_bucket_name" {
