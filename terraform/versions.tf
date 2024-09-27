@@ -1,4 +1,4 @@
-# terraform/providers.tf
+# terraform/versions.tf
 
 terraform {
   required_providers {
@@ -6,14 +6,11 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 4.0"
     }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.0"
-    }
   }
+  required_version = ">= 0.14"
 }
 
 provider "google" {
-  project = var.project_id
+  project = data.google_project.current.project_id
   region  = var.region
 }

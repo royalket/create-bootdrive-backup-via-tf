@@ -1,49 +1,25 @@
 # terraform/main.tf
 
-terraform {
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "~> 4.0"
-    }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.0"
-    }
-  }
-}
-
-provider "google" {}
-
 data "google_project" "current" {}
 
-# Random id for unique naming
-resource "random_id" "default" {
-  byte_length = 8
+data "google_compute_zones" "available" {
+  project = data.google_project.current.project_id
+  region  = var.region
 }
 
-# Data source to get a list of available VMs
-data "google_compute_instance_list" "available_vms" {
+data "google_compute_instances" "available" {
   project = data.google_project.current.project_id
+  zone    = data.google_compute_zones.available.names[0]
 }
 
 locals {
-  # Select the first available VM
-  selected_vm = length(data.google_compute_instance_list.available_vms.instances) > 0 ? data.google_compute_instance_list.available_vms.instances[0] : null
+  selected_vm = length(data.google_compute_instances.available.instances) > 0 ? data.google_compute_instances.available.instances[0] : null
 }
 
-# Create a Cloud Storage bucket for backups
 resource "google_storage_bucket" "backup_bucket" {
-  name     = "vm-backup-bucket-${random_id.default.hex}"
-  location = "US"  # You can change this to a specific region if needed
+  name     = "vm-backup-bucket-${data.google_project.current.project_id}"
+  location = var.region
   project  = data.google_project.current.project_id
-}
-
-# Create a Cloud Function
-resource "google_storage_bucket_object" "function_archive" {
-  name   = "function-source.zip"
-  bucket = google_storage_bucket.backup_bucket.name
-  source = data.archive_file.function_zip.output_path
 }
 
 data "archive_file" "function_zip" {
@@ -52,8 +28,14 @@ data "archive_file" "function_zip" {
   output_path = "/tmp/function-source.zip"
 }
 
+resource "google_storage_bucket_object" "function_archive" {
+  name   = "function-source.zip"
+  bucket = google_storage_bucket.backup_bucket.name
+  source = data.archive_file.function_zip.output_path
+}
+
 resource "google_cloudfunctions_function" "backup_function" {
-  name        = "vm-backup-function-${random_id.default.hex}"
+  name        = "vm-backup-function"
   description = "Function to backup VM boot disk"
   runtime     = "python39"
 
@@ -72,9 +54,8 @@ resource "google_cloudfunctions_function" "backup_function" {
   }
 }
 
-# Create a Cloud Scheduler job to trigger the function
 resource "google_cloud_scheduler_job" "backup_scheduler" {
-  name     = "vm-backup-scheduler-${random_id.default.hex}"
+  name     = "vm-backup-scheduler"
   schedule = "0 2 * * *"
   project  = data.google_project.current.project_id
 
@@ -88,14 +69,12 @@ resource "google_cloud_scheduler_job" "backup_scheduler" {
   }
 }
 
-# Service account for the Cloud Scheduler to invoke the function
 resource "google_service_account" "function_invoker" {
-  account_id   = "function-invoker-sa-${random_id.default.hex}"
+  account_id   = "function-invoker-sa"
   display_name = "Function Invoker Service Account"
   project      = data.google_project.current.project_id
 }
 
-# IAM binding to allow the service account to invoke the function
 resource "google_cloudfunctions_function_iam_member" "invoker" {
   project        = google_cloudfunctions_function.backup_function.project
   region         = google_cloudfunctions_function.backup_function.region

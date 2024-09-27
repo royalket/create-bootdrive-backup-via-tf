@@ -1,8 +1,8 @@
 # terraform/outputs.tf
 
-output "vm_name" {
-  value       = google_compute_instance.demo_vm.name
-  description = "The name of the demo VM"
+output "selected_vm_name" {
+  value       = local.selected_vm != null ? local.selected_vm.name : "No VM found"
+  description = "The name of the selected VM for backup"
 }
 
 output "backup_bucket_name" {
